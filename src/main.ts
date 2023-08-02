@@ -1,33 +1,71 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, Tray, Menu, ipcMain } from "electron";
 import * as path from "path";
+// const electronReload = require('electron-reload');
+
+// try {
+//   require('electron-reloader')(module)
+// } catch (_) {}
+
+// // Config hot reload
+// electronReload(__dirname);
+
+let tray: Tray = null;
+let trayWindow: BrowserWindow = null;
+let trayBounds: Electron.Rectangle = null;
 
 function createWindow() {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    height: 600,
+  tray = new Tray(path.join(__dirname, "../assets/icon-small.png"));
+  trayBounds = tray.getBounds();
+
+  tray.setToolTip("Let's stretch a bit");
+
+  trayWindow = new BrowserWindow({
+    width: 128,
+    height: 120,
+    frame: false,
+    resizable: false,
+    transparent: true,
+    show: false,
+    movable: false,
+    minimizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    maximizable: false,
     webPreferences: {
+      backgroundThrottling: false,
+      nodeIntegration: true,
       preload: path.join(__dirname, "preload.js"),
     },
-    width: 800,
   });
 
-  // and load the index.html of the app.
-  mainWindow.loadFile(path.join(__dirname, "../index.html"));
+  trayWindow.loadFile(path.join(__dirname, "../index.html"));
+
+  tray.on("click", () => {
+    trayWindow.setPosition(trayBounds.x - 62, trayBounds.y - 60);
+    toggleWindow();
+  });
+
+  trayWindow.on("closed", function () {
+    trayWindow = null;
+  });
+
+  trayWindow.on("blur", () => {
+    trayWindow.hide();
+  });
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+function toggleWindow() {
+  trayWindow.isVisible() ? trayWindow.hide() : trayWindow.show();
+}
+
 app.whenReady().then(() => {
   createWindow();
 
   app.on("activate", function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (trayWindow === null) createWindow();
   });
 });
 
@@ -40,5 +78,10 @@ app.on("window-all-closed", () => {
   }
 });
 
-// In this file you can include the rest of your app"s specific main process
-// code. You can also put them in separate files and require them here.
+ipcMain.once("quit", (event, args) => {
+  app.quit();
+});
+
+app.on("window-all-closed", function () {
+  if (process.platform !== "darwin") app.quit();
+});
